@@ -1,0 +1,31 @@
+# Ditambahkan Sesi 9 (production hardening) - sebelumnya TIDAK ADA .gitignore
+# sama sekali di root proyek, artinya kalau proyek ini di-`git init` &
+# di-commit apa adanya, file rahasia (.env berisi JWT_SECRET/ADMIN_API_KEY/
+# password DB sungguhan, local.properties berisi Maps API key) berisiko ikut
+# ter-commit. backend/.dockerignore sudah lama mengecualikan .env dari image
+# Docker, tapi itu tidak mencegahnya ter-commit ke Git.
+
+# Secrets - JANGAN PERNAH commit file .env sungguhan, hanya .env.example
+.env
+backend/.env
+android-app/local.properties
+
+# Dependencies
+node_modules/
+backend/node_modules/
+
+# Build artifacts
+backend/uploads/*
+!backend/uploads/.gitkeep
+android-app/**/build/
+android-app/.gradle/
+android-app/**/*.iml
+android-app/.idea/
+
+# Logs
+npm-debug.log*
+*.log
+
+# OS
+.DS_Store
+Thumbs.db

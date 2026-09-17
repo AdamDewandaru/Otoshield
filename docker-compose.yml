@@ -1,0 +1,72 @@
+# CATATAN: belum pernah dijalankan (`docker compose up`) di sandbox
+# pengembangan ini karena tidak ada akses ke Docker Hub untuk menarik image
+# `postgres:16-alpine` / `node:20-alpine` (di luar daftar domain jaringan
+# yang diizinkan). Sudah ditulis mengikuti pola docker-compose yang umum
+# dan konsisten dengan .env.example & schema.sql, tapi WAJIB dicoba jalan
+# dulu di mesin dengan akses internet normal sebelum dipakai serius.
+#
+# PERBAIKAN Sesi 9: sebelumnya file ini menaruh NILAI PLACEHOLDER PERSIS dari
+# backend/.env.example langsung sebagai JWT_SECRET/ADMIN_API_KEY dengan
+# NODE_ENV=production - kalau benar-benar dijalankan begitu saja, backend
+# SEKARANG akan langsung menolak boot (lihat backend/src/config/validateEnv.js,
+# ditambahkan Sesi 9: rahasia yang masih nilai contoh & NODE_ENV=production
+# dianggap fatal, bukan cuma peringatan) - ini justru PERILAKU YANG BENAR
+# (menangkap kesalahan konfigurasi asli), tapi berarti file compose ini WAJIB
+# diperbaiki dulu, bukan cuma "coba jalankan saja". Sekarang rahasia WAJIB
+# diisi lewat file `.env` di folder yang sama dengan file ini (root proyek,
+# BUKAN backend/.env) - lihat `.env.example` di sebelah file ini. Docker
+# Compose otomatis membaca `.env` di direktori yang sama untuk substitusi
+# `${VAR}` di bawah. Sintaks `${VAR:?pesan}` membuat `docker compose up`
+# GAGAL START dengan pesan jelas kalau variabel itu belum diisi sama sekali -
+# jaring pengaman tambahan di level Compose, sebelum bahkan sampai ke
+# validateEnv.js di dalam container.
+#
+# Cara pakai (setelah dicoba & bekerja):
+#   1. cp .env.example .env   # ISI JWT_SECRET/ADMIN_API_KEY dengan nilai acak sendiri
+#   2. docker compose up -d
+#   3. docker compose exec backend npm run migrate   # jalankan schema.sql
+#   4. docker compose exec backend npm run seed       # data contoh bengkel
+#   5. Buka http://localhost:4000 (API) dan http://localhost:4000/mechanic (dashboard)
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: otoshield
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Isi POSTGRES_PASSWORD di .env (lihat .env.example)}
+      POSTGRES_DB: otoshield_db
+    volumes:
+      - otoshield_pgdata:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U otoshield -d otoshield_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PORT: 4000
+      DATABASE_URL: postgres://otoshield:${POSTGRES_PASSWORD:?Isi POSTGRES_PASSWORD di .env (lihat .env.example)}@postgres:5432/otoshield_db
+      JWT_SECRET: ${JWT_SECRET:?Isi JWT_SECRET di .env dengan nilai acak - JANGAN pakai nilai contoh (lihat .env.example)}
+      JWT_EXPIRES_IN: 7d
+      ADMIN_API_KEY: ${ADMIN_API_KEY:?Isi ADMIN_API_KEY di .env dengan nilai acak - JANGAN pakai nilai contoh (lihat .env.example)}
+      # Kosong/tidak diisi -> izinkan semua origin (lihat backend/src/config/corsOrigin.js).
+      # Sebaiknya diisi domain frontend/app resmi sebelum deploy sungguhan.
+      CORS_ORIGIN: ${CORS_ORIGIN:-*}
+      NODE_ENV: production
+    ports:
+      - "4000:4000"
+    volumes:
+      - otoshield_uploads:/app/uploads
+
+volumes:
+  otoshield_pgdata:
+  otoshield_uploads:
